@@ -21,6 +21,9 @@ interface EditorCanvasProps {
   collaborators: User[]
   comments: Comment[]
   addComment: (x: number, y: number, text: string) => void
+  updateLayerData: (id: string, data: string) => void
+  brushColor: string
+  brushSize: number
 }
 
 export default function EditorCanvas({
@@ -31,6 +34,9 @@ export default function EditorCanvas({
   collaborators,
   comments,
   addComment,
+  updateLayerData,
+  brushColor,
+  brushSize,
 }: EditorCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -39,6 +45,50 @@ export default function EditorCanvas({
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [newComment, setNewComment] = useState<{ x: number; y: number; text: string } | null>(null)
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [lastPoint, setLastPoint] = useState<{ x: number; y: number } | null>(null)
+
+  // Initialize canvas only once with document dimensions
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    canvas.width = document.width
+    canvas.height = document.height
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Set initial styles
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+  }, [document.width, document.height]) // Remove brushColor and brushSize from dependencies
+
+  // Composite all layers
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    // Draw each visible layer
+    layers.forEach(layer => {
+      if (!layer.visible) return
+      if (layer.data) {
+        const img = new Image()
+        img.src = layer.data
+        img.onload = () => {
+          ctx.globalAlpha = layer.opacity / 100
+          ctx.drawImage(img, 0, 0)
+          ctx.globalAlpha = 1
+        }
+      }
+    })
+  }, [layers])
 
   // Handle canvas rendering
   useEffect(() => {
@@ -49,8 +99,7 @@ export default function EditorCanvas({
     if (!ctx) return
 
     // Clear canvas
-    ctx.fillStyle = "#ffffff"
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     // Draw checkerboard pattern for transparency
     const squareSize = 10
@@ -65,31 +114,20 @@ export default function EditorCanvas({
       }
     }
 
-    // In a real app, we would render the actual layer content here
-    // For now, we'll just draw placeholder content
-    layers.forEach((layer) => {
+    // Draw layers
+    layers.forEach(layer => {
       if (!layer.visible) return
-
-      ctx.globalAlpha = layer.opacity / 100
-
-      // Draw placeholder content based on layer type
-      if (layer.type === "raster") {
-        ctx.fillStyle = layer.id === activeLayerId ? "#3b82f6" : "#6b7280"
-        ctx.fillRect(50, 50, 200, 200)
-      } else if (layer.type === "text") {
-        ctx.fillStyle = layer.id === activeLayerId ? "#3b82f6" : "#6b7280"
-        ctx.font = "24px sans-serif"
-        ctx.fillText("Text Layer", 50, 300)
-      } else if (layer.type === "shape") {
-        ctx.fillStyle = layer.id === activeLayerId ? "#3b82f6" : "#6b7280"
-        ctx.beginPath()
-        ctx.arc(400, 200, 100, 0, Math.PI * 2)
-        ctx.fill()
+      if (layer.data) {
+        const img = new Image()
+        img.src = layer.data
+        img.onload = () => {
+          ctx.globalAlpha = layer.opacity / 100
+          ctx.drawImage(img, 0, 0)
+          ctx.globalAlpha = 1
+        }
       }
-
-      ctx.globalAlpha = 1
     })
-  }, [layers, activeLayerId, document])
+  }, [layers])
 
   // Handle canvas interactions
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -104,6 +142,8 @@ export default function EditorCanvas({
       setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y })
     } else if (activeTool === "comment") {
       setNewComment({ x, y, text: "" })
+    } else if (activeTool === "brush") {
+      startDrawing(e)
     }
     // Other tool interactions would be handled here
   }
@@ -114,12 +154,15 @@ export default function EditorCanvas({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
       })
+    } else if (isDrawing) {
+      draw(e)
     }
     // Other tool interactions would be handled here
   }
 
   const handleCanvasMouseUp = () => {
     setIsDragging(false)
+    stopDrawing()
     // Other tool interactions would be handled here
   }
 
@@ -141,6 +184,64 @@ export default function EditorCanvas({
       addComment(newComment.x, newComment.y, newComment.text)
       setNewComment(null)
     }
+  }
+
+  const getMousePos = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+
+    const rect = canvas.getBoundingClientRect()
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    }
+  }
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const activeLayer = layers.find(layer => layer.id === activeLayerId)
+    if (!activeLayer || activeLayer.locked) return
+
+    setIsDrawing(true)
+    const point = getMousePos(e)
+    setLastPoint(point)
+  }
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !lastPoint) return
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const currentPoint = getMousePos(e)
+
+    // Update brush properties just before drawing
+    ctx.strokeStyle = brushColor
+    ctx.lineWidth = brushSize
+    ctx.beginPath()
+    ctx.moveTo(lastPoint.x, lastPoint.y)
+    ctx.lineTo(currentPoint.x, currentPoint.y)
+    ctx.stroke()
+
+    setLastPoint(currentPoint)
+  }
+
+  const stopDrawing = () => {
+    if (!isDrawing) return
+
+    setIsDrawing(false)
+    setLastPoint(null)
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const activeLayer = layers.find(layer => layer.id === activeLayerId)
+    if (!activeLayer) return
+
+    const layerData = canvas.toDataURL()
+    updateLayerData(activeLayerId, layerData)
   }
 
   return (

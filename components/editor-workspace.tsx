@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import EditorHeader from "@/components/editor-header"
 import EditorCanvas from "@/components/editor-canvas"
@@ -10,6 +10,7 @@ import PropertiesPanel from "@/components/properties-panel"
 import CollaborationPanel from "@/components/collaboration-panel"
 import type { Layer, Tool, User, Comment } from "@/lib/types"
 import { generateMockLayers, generateMockUsers, generateMockComments } from "@/lib/mock-data"
+import BrushControls from "@/components/brush-controls"
 
 export default function EditorWorkspace() {
   const [activeDocument, setActiveDocument] = useState({
@@ -27,24 +28,8 @@ export default function EditorWorkspace() {
   const [history, setHistory] = useState<Layer[][]>([layers])
   const [historyIndex, setHistoryIndex] = useState(0)
   const [showCollaborators, setShowCollaborators] = useState(true)
-
-  // Simulate real-time updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Simulate collaborator cursor movement
-      setCollaborators((prev) =>
-        prev.map((user) => ({
-          ...user,
-          cursor: {
-            x: Math.floor(Math.random() * activeDocument.width),
-            y: Math.floor(Math.random() * activeDocument.height),
-          },
-        })),
-      )
-    }, 3000)
-
-    return () => clearInterval(interval)
-  }, [activeDocument])
+  const [brushColor, setBrushColor] = useState("#000000")
+  const [brushSize, setBrushSize] = useState(5)
 
   // Add a layer
   const addLayer = () => {
@@ -149,6 +134,20 @@ export default function EditorWorkspace() {
     }
   }
 
+  // Add this function to your EditorWorkspace component
+  const updateLayerData = (id: string, data: string) => {
+    const newLayers = layers.map(layer => 
+      layer.id === id ? { ...layer, data } : layer
+    )
+    setLayers(newLayers)
+
+    // Update history
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push([...newLayers])
+    setHistory(newHistory)
+    setHistoryIndex(newHistory.length - 1)
+  }
+
   return (
     <div className="flex flex-col h-screen bg-zinc-900 text-zinc-100">
       <EditorHeader
@@ -163,7 +162,14 @@ export default function EditorWorkspace() {
       />
 
       <div className="flex flex-1 overflow-hidden">
-        <ToolsPanel activeTool={activeTool} setActiveTool={setActiveTool} />
+        <ToolsPanel 
+          activeTool={activeTool} 
+          setActiveTool={setActiveTool}
+          brushColor={brushColor}
+          brushSize={brushSize}
+          onBrushColorChange={setBrushColor}
+          onBrushSizeChange={setBrushSize}
+        />
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <EditorCanvas
@@ -174,6 +180,9 @@ export default function EditorWorkspace() {
             collaborators={showCollaborators ? collaborators : []}
             comments={comments}
             addComment={addComment}
+            updateLayerData={updateLayerData}
+            brushColor={brushColor}
+            brushSize={brushSize}
           />
         </div>
 
@@ -183,6 +192,7 @@ export default function EditorWorkspace() {
               <TabsTrigger value="layers">Layers</TabsTrigger>
               <TabsTrigger value="properties">Properties</TabsTrigger>
               <TabsTrigger value="collaboration">Collab</TabsTrigger>
+              <TabsTrigger value="tools">Tools</TabsTrigger>
             </TabsList>
 
             <TabsContent value="layers" className="flex-1 p-0 m-0 overflow-hidden">
@@ -207,6 +217,17 @@ export default function EditorWorkspace() {
 
             <TabsContent value="collaboration" className="flex-1 p-0 m-0 overflow-hidden">
               <CollaborationPanel collaborators={collaborators} comments={comments} resolveComment={resolveComment} />
+            </TabsContent>
+
+            <TabsContent value="tools" className="flex-1 p-0 m-0 overflow-hidden">
+              {activeTool === "brush" && (
+                <BrushControls
+                  color={brushColor}
+                  size={brushSize}
+                  onColorChange={setBrushColor}
+                  onSizeChange={setBrushSize}
+                />
+              )}
             </TabsContent>
           </Tabs>
         </div>
