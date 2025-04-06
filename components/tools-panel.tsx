@@ -91,13 +91,14 @@ export default function ToolsPanel({
               <Button
                 size="icon"
                 variant={activeTool === tool.id ? "secondary" : "ghost"}
-                className="w-12 h-12"
+                className="w-12 h-12 relative group"
                 onClick={() => setActiveTool(tool.id)}
               >
                 <tool.icon className="w-6 h-6" />
+                <div className="absolute -right-1 -bottom-1 w-3 h-3 bg-zinc-800 border border-zinc-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
               </Button>
             </ContextMenuTrigger>
-            <ContextMenuContent className="w-64">
+            <ContextMenuContent className="w-64 p-0">
               <EraserControls
                 size={eraserSize}
                 onSizeChange={onEraserSizeChange}

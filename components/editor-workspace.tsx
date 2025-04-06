@@ -32,6 +32,15 @@ export default function EditorWorkspace() {
   const [brushColor, setBrushColor] = useState("#000000")
   const [brushSize, setBrushSize] = useState(5)
   const [eraserSize, setEraserSize] = useState(20)
+  const [fontSize, setFontSize] = useState(24)
+  const [fontFamily, setFontFamily] = useState("Inter")
+  const [textColor, setTextColor] = useState("#000000")
+  const [activeText, setActiveText] = useState<{
+    id: string;
+    content: string;
+    x: number;
+    y: number;
+  } | null>(null)
 
   // Add a layer
   const addLayer = () => {
@@ -242,6 +251,22 @@ export default function EditorWorkspace() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [historyIndex]) // Add any dependencies needed for undo/redo functions
 
+  // Add text handling functions
+  const handleTextClick = (e: React.MouseEvent) => {
+    if (activeTool !== "text") return
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    setActiveText({
+      id: `text-${Date.now()}`,
+      content: "Double click to edit",
+      x,
+      y
+    })
+  }
+
   return (
     <div 
       className="flex flex-col h-screen bg-zinc-900 text-zinc-100"
@@ -266,6 +291,8 @@ export default function EditorWorkspace() {
           brushSize={brushSize}
           onBrushColorChange={setBrushColor}
           onBrushSizeChange={setBrushSize}
+          eraserSize={eraserSize}
+          onEraserSizeChange={setEraserSize}
         />
 
         <div className="flex-1 flex flex-col overflow-hidden">
