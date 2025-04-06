@@ -24,6 +24,7 @@ interface EditorCanvasProps {
   updateLayerData: (id: string, data: string) => void
   brushColor: string
   brushSize: number
+  eraserSize: number
 }
 
 export default function EditorCanvas({
@@ -37,6 +38,7 @@ export default function EditorCanvas({
   updateLayerData,
   brushColor,
   brushSize,
+  eraserSize,
 }: EditorCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -142,7 +144,7 @@ export default function EditorCanvas({
       setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y })
     } else if (activeTool === "comment") {
       setNewComment({ x, y, text: "" })
-    } else if (activeTool === "brush") {
+    } else if (activeTool === "brush" || activeTool === "eraser") {
       startDrawing(e)
     }
     // Other tool interactions would be handled here
@@ -217,13 +219,27 @@ export default function EditorCanvas({
 
     const currentPoint = getMousePos(e)
 
-    // Update brush properties just before drawing
-    ctx.strokeStyle = brushColor
-    ctx.lineWidth = brushSize
+    if (activeTool === "eraser") {
+      // Set up eraser
+      ctx.save()
+      ctx.globalCompositeOperation = 'destination-out'
+      ctx.strokeStyle = '#000000'
+      ctx.lineWidth = eraserSize
+    } else {
+      // Normal brush
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.strokeStyle = brushColor
+      ctx.lineWidth = brushSize
+    }
+
     ctx.beginPath()
     ctx.moveTo(lastPoint.x, lastPoint.y)
     ctx.lineTo(currentPoint.x, currentPoint.y)
     ctx.stroke()
+
+    if (activeTool === "eraser") {
+      ctx.restore()
+    }
 
     setLastPoint(currentPoint)
   }

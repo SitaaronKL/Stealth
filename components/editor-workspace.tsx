@@ -11,6 +11,7 @@ import CollaborationPanel from "@/components/collaboration-panel"
 import type { Layer, Tool, User, Comment } from "@/lib/types"
 import { generateMockLayers, generateMockUsers, generateMockComments } from "@/lib/mock-data"
 import BrushControls from "@/components/brush-controls"
+import { socket, connectToDocument, updateCursor, updateLayer, disconnectFromDocument } from "@/lib/socket"
 
 export default function EditorWorkspace() {
   const [activeDocument, setActiveDocument] = useState({
@@ -30,6 +31,7 @@ export default function EditorWorkspace() {
   const [showCollaborators, setShowCollaborators] = useState(true)
   const [brushColor, setBrushColor] = useState("#000000")
   const [brushSize, setBrushSize] = useState(5)
+  const [eraserSize, setEraserSize] = useState(20)
 
   // Add a layer
   const addLayer = () => {
@@ -134,7 +136,56 @@ export default function EditorWorkspace() {
     }
   }
 
-  // Add this function to your EditorWorkspace component
+  // Connect to socket when component mounts
+  useEffect(() => {
+    const userData = {
+      id: "current-user", // In a real app, this would come from auth
+      name: "Current User",
+      color: "#3b82f6",
+    }
+
+    connectToDocument(activeDocument.id, userData)
+
+    // Listen for user events
+    socket.on("user-joined", (userData) => {
+      setCollaborators(prev => [...prev, {
+        id: userData.id,
+        name: userData.name,
+        color: userData.color,
+        avatar: "", // Add default avatar
+        role: "editor",
+        cursor: { x: 0, y: 0 }
+      }])
+    })
+
+    socket.on("user-left", (userId) => {
+      setCollaborators(prev => prev.filter(user => user.id !== userId))
+    })
+
+    // Listen for layer updates
+    socket.on("layer-updated", (updatedLayer) => {
+      setLayers(prev => prev.map(layer => 
+        layer.id === updatedLayer.id ? updatedLayer : layer
+      ))
+    })
+
+    // Listen for cursor updates
+    socket.on("cursor-moved", (userId, position) => {
+      setCollaborators(prev => prev.map(user => 
+        user.id === userId ? { ...user, cursor: position } : user
+      ))
+    })
+
+    return () => {
+      disconnectFromDocument()
+      socket.off("user-joined")
+      socket.off("user-left")
+      socket.off("layer-updated")
+      socket.off("cursor-moved")
+    }
+  }, [activeDocument.id])
+
+  // Update the updateLayerData function to broadcast changes
   const updateLayerData = (id: string, data: string) => {
     const newLayers = layers.map(layer => 
       layer.id === id ? { ...layer, data } : layer
@@ -146,6 +197,25 @@ export default function EditorWorkspace() {
     newHistory.push([...newLayers])
     setHistory(newHistory)
     setHistoryIndex(newHistory.length - 1)
+
+    // Broadcast the layer update
+    const updatedLayer = newLayers.find(layer => layer.id === id)
+    if (updatedLayer) {
+      updateLayer(activeDocument.id, updatedLayer)
+    }
+  }
+
+  // Add cursor position tracking
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!showCollaborators) return
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const position = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    }
+    
+    updateCursor(activeDocument.id, "current-user", position)
   }
 
   // Add keyboard shortcuts
@@ -173,7 +243,10 @@ export default function EditorWorkspace() {
   }, [historyIndex]) // Add any dependencies needed for undo/redo functions
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-900 text-zinc-100">
+    <div 
+      className="flex flex-col h-screen bg-zinc-900 text-zinc-100"
+      onMouseMove={handleMouseMove}
+    >
       <EditorHeader
         documentName={activeDocument.name}
         undo={undo}
@@ -207,6 +280,7 @@ export default function EditorWorkspace() {
             updateLayerData={updateLayerData}
             brushColor={brushColor}
             brushSize={brushSize}
+            eraserSize={eraserSize}
           />
         </div>
 

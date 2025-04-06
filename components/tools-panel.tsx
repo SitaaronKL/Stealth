@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 import type { Tool } from "@/lib/types"
 import BrushControls from "./brush-controls"
+import EraserControls from "./eraser-controls"
 
 interface ToolsPanelProps {
   activeTool: Tool
@@ -30,6 +31,8 @@ interface ToolsPanelProps {
   brushSize: number
   onBrushColorChange: (color: string) => void
   onBrushSizeChange: (size: number) => void
+  eraserSize: number
+  onEraserSizeChange: (size: number) => void
 }
 
 export default function ToolsPanel({
@@ -39,6 +42,8 @@ export default function ToolsPanel({
   brushSize,
   onBrushColorChange,
   onBrushSizeChange,
+  eraserSize,
+  onEraserSizeChange,
 }: ToolsPanelProps) {
   const tools = [
     { id: "move" as Tool, icon: Move, label: "Move Tool (V)" },
@@ -77,6 +82,25 @@ export default function ToolsPanel({
                 size={brushSize}
                 onColorChange={onBrushColorChange}
                 onSizeChange={onBrushSizeChange}
+              />
+            </ContextMenuContent>
+          </ContextMenu>
+        ) : tool.id === "eraser" ? (
+          <ContextMenu key={tool.id}>
+            <ContextMenuTrigger>
+              <Button
+                size="icon"
+                variant={activeTool === tool.id ? "secondary" : "ghost"}
+                className="w-12 h-12"
+                onClick={() => setActiveTool(tool.id)}
+              >
+                <tool.icon className="w-6 h-6" />
+              </Button>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="w-64">
+              <EraserControls
+                size={eraserSize}
+                onSizeChange={onEraserSizeChange}
               />
             </ContextMenuContent>
           </ContextMenu>
