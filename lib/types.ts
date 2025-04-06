@@ -1,27 +1,23 @@
-export type Tool =
-  | "move"
-  | "select"
-  | "text"
-  | "brush"
-  | "rectangle"
-  | "ellipse"
-  | "image"
-  | "eraser"
-  | "crop"
-  | "eyedropper"
-  | "hand"
-  | "zoom"
-  | "comment"
+export type Tool = "move" | "brush" | "eraser" | "text" | "shape"
 
-export type Layer = {
+export interface Layer {
   id: string
   name: string
   visible: boolean
   locked: boolean
   opacity: number
-  type: "raster" | "text" | "shape"
+  type: "raster" | "vector" | "text"
   owner: string
-  data: any
+  data: string | null // Base64 encoded image data
+  textData?: {
+    id: string
+    content: string
+    x: number
+    y: number
+    fontFamily: string
+    fontSize: number
+    color: string
+  }
 }
 
 export type User = {

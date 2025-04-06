@@ -21,6 +21,22 @@ interface EditorCanvasProps {
   collaborators: User[]
   comments: Comment[]
   addComment: (x: number, y: number, text: string) => void
+  updateLayerData: (id: string, data: string) => void
+  brushColor: string
+  brushSize: number
+  eraserSize: number
+  fontSize: number
+  fontFamily: string
+  textColor: string
+  activeText: {
+    id: string;
+    content: string;
+    x: number;
+    y: number;
+  } | null
+  onTextChange: (text: string) => void
+  onTextAdd: (text: { id: string; content: string; x: number; y: number }) => void
+  onImagePaste: (imageData: string) => void
 }
 
 export default function EditorCanvas({
@@ -31,6 +47,17 @@ export default function EditorCanvas({
   collaborators,
   comments,
   addComment,
+  updateLayerData,
+  brushColor,
+  brushSize,
+  eraserSize,
+  fontSize,
+  fontFamily,
+  textColor,
+  activeText,
+  onTextChange,
+  onTextAdd,
+  onImagePaste,
 }: EditorCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -39,18 +66,46 @@ export default function EditorCanvas({
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [newComment, setNewComment] = useState<{ x: number; y: number; text: string } | null>(null)
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [lastPoint, setLastPoint] = useState<{ x: number; y: number } | null>(null)
+  const [textInput, setTextInput] = useState<{
+    x: number;
+    y: number;
+    value: string;
+  } | null>(null)
+  const [editingText, setEditingText] = useState<{
+    id: string;
+    content: string;
+    x: number;
+    y: number;
+  } | null>(null)
+
+  // Initialize canvas only once with document dimensions
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    canvas.width = document.width
+    canvas.height = document.height
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Set initial styles
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+  }, [document.width, document.height]) // Remove brushColor and brushSize from dependencies
 
   // Handle canvas rendering
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const ctx = canvas.getContext("2d")
+    const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     // Clear canvas
-    ctx.fillStyle = "#ffffff"
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     // Draw checkerboard pattern for transparency
     const squareSize = 10
@@ -65,31 +120,29 @@ export default function EditorCanvas({
       }
     }
 
-    // In a real app, we would render the actual layer content here
-    // For now, we'll just draw placeholder content
-    layers.forEach((layer) => {
+    // Draw all layers in order
+    layers.forEach(layer => {
       if (!layer.visible) return
 
       ctx.globalAlpha = layer.opacity / 100
 
-      // Draw placeholder content based on layer type
-      if (layer.type === "raster") {
-        ctx.fillStyle = layer.id === activeLayerId ? "#3b82f6" : "#6b7280"
-        ctx.fillRect(50, 50, 200, 200)
-      } else if (layer.type === "text") {
-        ctx.fillStyle = layer.id === activeLayerId ? "#3b82f6" : "#6b7280"
-        ctx.font = "24px sans-serif"
-        ctx.fillText("Text Layer", 50, 300)
-      } else if (layer.type === "shape") {
-        ctx.fillStyle = layer.id === activeLayerId ? "#3b82f6" : "#6b7280"
-        ctx.beginPath()
-        ctx.arc(400, 200, 100, 0, Math.PI * 2)
-        ctx.fill()
+      if (layer.type === "text" && layer.textData) {
+        console.log("Drawing text:", layer.textData) // Debug log
+        ctx.font = `${layer.textData.fontSize}px ${layer.textData.fontFamily}`
+        ctx.fillStyle = layer.textData.color
+        ctx.textBaseline = 'top' // This helps with text positioning
+        ctx.fillText(layer.textData.content, layer.textData.x, layer.textData.y)
+      } else if (layer.data) {
+        const img = new Image()
+        img.src = layer.data
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0)
+        }
       }
 
       ctx.globalAlpha = 1
     })
-  }, [layers, activeLayerId, document])
+  }, [layers, document.width, document.height])
 
   // Handle canvas interactions
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -104,8 +157,28 @@ export default function EditorCanvas({
       setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y })
     } else if (activeTool === "comment") {
       setNewComment({ x, y, text: "" })
+    } else if (activeTool === "brush" || activeTool === "eraser") {
+      startDrawing(e)
+    } else if (activeTool === "text") {
+      // Check if clicking on existing text
+      const textLayer = layers.find(layer => 
+        layer.type === "text" && 
+        layer.textData &&
+        Math.abs(layer.textData.x - x) < 50 && // Adjust hit area as needed
+        Math.abs(layer.textData.y - y) < 50
+      )
+
+      if (textLayer?.textData) {
+        setEditingText(textLayer.textData)
+      } else {
+        setEditingText({
+          id: `text-${Date.now()}`,
+          content: "",
+          x,
+          y
+        })
+      }
     }
-    // Other tool interactions would be handled here
   }
 
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -114,12 +187,15 @@ export default function EditorCanvas({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
       })
+    } else if (isDrawing) {
+      draw(e)
     }
     // Other tool interactions would be handled here
   }
 
   const handleCanvasMouseUp = () => {
     setIsDragging(false)
+    stopDrawing()
     // Other tool interactions would be handled here
   }
 
@@ -142,6 +218,120 @@ export default function EditorCanvas({
       setNewComment(null)
     }
   }
+
+  const getMousePos = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+
+    const rect = canvas.getBoundingClientRect()
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    }
+  }
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const activeLayer = layers.find(layer => layer.id === activeLayerId)
+    if (!activeLayer || activeLayer.locked) return
+
+    setIsDrawing(true)
+    const point = getMousePos(e)
+    setLastPoint(point)
+  }
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !lastPoint) return
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const currentPoint = getMousePos(e)
+
+    if (activeTool === "eraser") {
+      // Set up eraser
+      ctx.save()
+      ctx.globalCompositeOperation = 'destination-out'
+      ctx.strokeStyle = '#000000'
+      ctx.lineWidth = eraserSize
+    } else {
+      // Normal brush
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.strokeStyle = brushColor
+      ctx.lineWidth = brushSize
+    }
+
+    ctx.beginPath()
+    ctx.moveTo(lastPoint.x, lastPoint.y)
+    ctx.lineTo(currentPoint.x, currentPoint.y)
+    ctx.stroke()
+
+    if (activeTool === "eraser") {
+      ctx.restore()
+    }
+
+    setLastPoint(currentPoint)
+  }
+
+  const stopDrawing = () => {
+    if (!isDrawing) return
+
+    setIsDrawing(false)
+    setLastPoint(null)
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const activeLayer = layers.find(layer => layer.id === activeLayerId)
+    if (!activeLayer) return
+
+    const layerData = canvas.toDataURL()
+    updateLayerData(activeLayerId, layerData)
+  }
+
+  // Add text input handling
+  const handleTextSubmit = () => {
+    if (!editingText) return
+    onTextAdd(editingText)
+    setEditingText(null)
+  }
+
+  // Add function to handle text click for editing
+  const handleTextClick = (text: { id: string; content: string; x: number; y: number }) => {
+    if (activeTool !== "text") return
+    setEditingText(text)
+  }
+
+  // Update clipboard paste handler
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (const item of items) {
+        if (item.type.indexOf('image') === 0) {
+          e.preventDefault()
+          
+          const file = item.getAsFile()
+          if (!file) continue
+
+          const reader = new FileReader()
+          reader.onload = (event) => {
+            const imageData = event.target?.result as string
+            onImagePaste(imageData)
+          }
+
+          reader.readAsDataURL(file)
+        }
+      }
+    }
+
+    // Add paste event listener to window
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [onImagePaste])
 
   return (
     <div className="relative flex-1 overflow-hidden bg-zinc-800" ref={containerRef}>
@@ -235,6 +425,42 @@ export default function EditorCanvas({
                 </Button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Text Input */}
+        {editingText && (
+          <div
+            className="absolute"
+            style={{
+              left: editingText.x + 'px',
+              top: editingText.y + 'px',
+              transform: `scale(${scale})`,
+              transformOrigin: "0 0",
+            }}
+          >
+            <Input
+              type="text"
+              value={editingText.content}
+              placeholder="Type here..."
+              onChange={(e) => setEditingText({ ...editingText, content: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleTextSubmit()
+                }
+                if (e.key === 'Escape') {
+                  setEditingText(null)
+                }
+              }}
+              onBlur={handleTextSubmit}
+              autoFocus
+              className="bg-transparent border-none text-white shadow-none p-0 min-w-[100px]"
+              style={{
+                fontFamily,
+                fontSize: `${fontSize}px`,
+                color: textColor,
+              }}
+            />
           </div>
         )}
       </div>

@@ -1,7 +1,9 @@
 "use client"
 
+import { useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu"
 import {
   Move,
   MousePointer,
@@ -16,20 +18,51 @@ import {
   Hand,
   ZoomIn,
   MessageSquare,
+  Brush,
 } from "lucide-react"
 import type { Tool } from "@/lib/types"
+import BrushControls from "./brush-controls"
+import EraserControls from "./eraser-controls"
+import TextControls from "./text-controls"
 
 interface ToolsPanelProps {
   activeTool: Tool
   setActiveTool: (tool: Tool) => void
+  brushColor: string
+  brushSize: number
+  onBrushColorChange: (color: string) => void
+  onBrushSizeChange: (size: number) => void
+  eraserSize: number
+  onEraserSizeChange: (size: number) => void
+  fontSize: number
+  onFontSizeChange: (size: number) => void
+  fontFamily: string
+  onFontFamilyChange: (font: string) => void
+  textColor: string
+  onTextColorChange: (color: string) => void
 }
 
-export default function ToolsPanel({ activeTool, setActiveTool }: ToolsPanelProps) {
+export default function ToolsPanel({
+  activeTool,
+  setActiveTool,
+  brushColor,
+  brushSize,
+  onBrushColorChange,
+  onBrushSizeChange,
+  eraserSize,
+  onEraserSizeChange,
+  fontSize,
+  onFontSizeChange,
+  fontFamily,
+  onFontFamilyChange,
+  textColor,
+  onTextColorChange,
+}: ToolsPanelProps) {
   const tools = [
     { id: "move" as Tool, icon: Move, label: "Move Tool (V)" },
     { id: "select" as Tool, icon: MousePointer, label: "Selection Tool (S)" },
     { id: "text" as Tool, icon: Type, label: "Text Tool (T)" },
-    { id: "brush" as Tool, icon: Pencil, label: "Brush Tool (B)" },
+    { id: "brush" as Tool, icon: Brush, label: "Brush Tool (B)" },
     { id: "rectangle" as Tool, icon: Square, label: "Rectangle Tool (R)" },
     { id: "ellipse" as Tool, icon: Circle, label: "Ellipse Tool (E)" },
     { id: "image" as Tool, icon: Image, label: "Place Image (P)" },
@@ -42,26 +75,85 @@ export default function ToolsPanel({ activeTool, setActiveTool }: ToolsPanelProp
   ]
 
   return (
-    <div className="w-12 border-r border-zinc-800 bg-zinc-950 flex flex-col items-center py-2">
-      <TooltipProvider delayDuration={300}>
-        {tools.map((tool) => (
-          <Tooltip key={tool.id}>
-            <TooltipTrigger asChild>
+    <div className="w-16 border-r border-zinc-800 p-2 flex flex-col gap-1">
+      {tools.map((tool) => (
+        tool.id === "brush" ? (
+          <ContextMenu key={tool.id}>
+            <ContextMenuTrigger>
               <Button
-                variant={activeTool === tool.id ? "secondary" : "ghost"}
                 size="icon"
-                className="h-9 w-9 rounded-md mb-1"
+                variant={activeTool === tool.id ? "secondary" : "ghost"}
+                className="w-12 h-12"
                 onClick={() => setActiveTool(tool.id)}
               >
-                <tool.icon className="h-5 w-5" />
+                <tool.icon className="w-6 h-6" />
               </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              <p>{tool.label}</p>
-            </TooltipContent>
-          </Tooltip>
-        ))}
-      </TooltipProvider>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="w-64">
+              <BrushControls
+                color={brushColor}
+                size={brushSize}
+                onColorChange={onBrushColorChange}
+                onSizeChange={onBrushSizeChange}
+              />
+            </ContextMenuContent>
+          </ContextMenu>
+        ) : tool.id === "eraser" ? (
+          <ContextMenu key={tool.id}>
+            <ContextMenuTrigger>
+              <Button
+                size="icon"
+                variant={activeTool === tool.id ? "secondary" : "ghost"}
+                className="w-12 h-12 relative group"
+                onClick={() => setActiveTool(tool.id)}
+              >
+                <tool.icon className="w-6 h-6" />
+                <div className="absolute -right-1 -bottom-1 w-3 h-3 bg-zinc-800 border border-zinc-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+              </Button>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="w-64 p-0">
+              <EraserControls
+                size={eraserSize}
+                onSizeChange={onEraserSizeChange}
+              />
+            </ContextMenuContent>
+          </ContextMenu>
+        ) : tool.id === "text" ? (
+          <ContextMenu key={tool.id}>
+            <ContextMenuTrigger>
+              <Button
+                size="icon"
+                variant={activeTool === tool.id ? "secondary" : "ghost"}
+                className="w-12 h-12 relative group"
+                onClick={() => setActiveTool(tool.id)}
+              >
+                <tool.icon className="w-6 h-6" />
+                <div className="absolute -right-1 -bottom-1 w-3 h-3 bg-zinc-800 border border-zinc-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+              </Button>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="w-64 p-0">
+              <TextControls
+                fontSize={fontSize}
+                onFontSizeChange={onFontSizeChange}
+                fontFamily={fontFamily}
+                onFontFamilyChange={onFontFamilyChange}
+                color={textColor}
+                onColorChange={onTextColorChange}
+              />
+            </ContextMenuContent>
+          </ContextMenu>
+        ) : (
+          <Button
+            key={tool.id}
+            size="icon"
+            variant={activeTool === tool.id ? "secondary" : "ghost"}
+            className="w-12 h-12"
+            onClick={() => setActiveTool(tool.id)}
+          >
+            <tool.icon className="w-6 h-6" />
+          </Button>
+        )
+      ))}
     </div>
   )
 }
