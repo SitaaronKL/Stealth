@@ -1,4 +1,3 @@
-import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
@@ -32,6 +31,13 @@ export default function TextControls({
   color,
   onColorChange,
 }: TextControlsProps) {
+  const handleFontSizeChange = (value: string) => {
+    const size = parseInt(value)
+    if (!isNaN(size) && size > 0) {
+      onFontSizeChange(size)
+    }
+  }
+
   return (
     <div className="flex flex-col">
       <div className="border-b border-zinc-800 p-2">
@@ -56,16 +62,13 @@ export default function TextControls({
         </div>
 
         <div className="space-y-2">
-          <div className="flex justify-between">
-            <Label className="text-xs">Font Size</Label>
-            <span className="text-xs text-zinc-400">{fontSize}px</span>
-          </div>
-          <Slider
-            value={[fontSize]}
-            min={8}
-            max={144}
-            step={1}
-            onValueChange={(value) => onFontSizeChange(value[0])}
+          <Label className="text-xs">Font Size</Label>
+          <Input
+            type="number"
+            value={fontSize}
+            onChange={(e) => handleFontSizeChange(e.target.value)}
+            min={1}
+            className="h-8"
           />
         </div>
 
@@ -82,7 +85,7 @@ export default function TextControls({
               type="text"
               value={color}
               onChange={(e) => onColorChange(e.target.value)}
-              className="flex-1"
+              className="flex-1 h-8"
             />
           </div>
         </div>

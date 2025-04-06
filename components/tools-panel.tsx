@@ -23,6 +23,7 @@ import {
 import type { Tool } from "@/lib/types"
 import BrushControls from "./brush-controls"
 import EraserControls from "./eraser-controls"
+import TextControls from "./text-controls"
 
 interface ToolsPanelProps {
   activeTool: Tool
@@ -33,6 +34,12 @@ interface ToolsPanelProps {
   onBrushSizeChange: (size: number) => void
   eraserSize: number
   onEraserSizeChange: (size: number) => void
+  fontSize: number
+  onFontSizeChange: (size: number) => void
+  fontFamily: string
+  onFontFamilyChange: (font: string) => void
+  textColor: string
+  onTextColorChange: (color: string) => void
 }
 
 export default function ToolsPanel({
@@ -44,6 +51,12 @@ export default function ToolsPanel({
   onBrushSizeChange,
   eraserSize,
   onEraserSizeChange,
+  fontSize,
+  onFontSizeChange,
+  fontFamily,
+  onFontFamilyChange,
+  textColor,
+  onTextColorChange,
 }: ToolsPanelProps) {
   const tools = [
     { id: "move" as Tool, icon: Move, label: "Move Tool (V)" },
@@ -102,6 +115,30 @@ export default function ToolsPanel({
               <EraserControls
                 size={eraserSize}
                 onSizeChange={onEraserSizeChange}
+              />
+            </ContextMenuContent>
+          </ContextMenu>
+        ) : tool.id === "text" ? (
+          <ContextMenu key={tool.id}>
+            <ContextMenuTrigger>
+              <Button
+                size="icon"
+                variant={activeTool === tool.id ? "secondary" : "ghost"}
+                className="w-12 h-12 relative group"
+                onClick={() => setActiveTool(tool.id)}
+              >
+                <tool.icon className="w-6 h-6" />
+                <div className="absolute -right-1 -bottom-1 w-3 h-3 bg-zinc-800 border border-zinc-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+              </Button>
+            </ContextMenuTrigger>
+            <ContextMenuContent className="w-64 p-0">
+              <TextControls
+                fontSize={fontSize}
+                onFontSizeChange={onFontSizeChange}
+                fontFamily={fontFamily}
+                onFontFamilyChange={onFontFamilyChange}
+                color={textColor}
+                onColorChange={onTextColorChange}
               />
             </ContextMenuContent>
           </ContextMenu>

@@ -267,6 +267,64 @@ export default function EditorWorkspace() {
     })
   }
 
+  const handleTextAdd = (textData: { id: string; content: string; x: number; y: number }) => {
+    console.log("Adding text layer:", textData) // Debug log
+    const newLayer: Layer = {
+      id: `layer-${Date.now()}`,
+      name: `Text Layer ${layers.length + 1}`,
+      visible: true,
+      locked: false,
+      opacity: 100,
+      type: "text",
+      owner: "current-user",
+      data: null,
+      textData: {
+        ...textData,
+        fontFamily,
+        fontSize,
+        color: textColor
+      }
+    }
+
+    console.log("New layer:", newLayer) // Debug log
+    const newLayers = [...layers, newLayer]
+    setLayers(newLayers)
+    setActiveLayerId(newLayer.id)
+
+    // Update history
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push([...newLayers])
+    setHistory(newHistory)
+    setHistoryIndex(newHistory.length - 1)
+  }
+
+  // Add image paste handler
+  const handleImagePaste = (imageData: string) => {
+    const newLayer: Layer = {
+      id: `layer-${Date.now()}`,
+      name: `Pasted Image ${layers.length + 1}`,
+      visible: true,
+      locked: false,
+      opacity: 100,
+      type: "raster",
+      owner: "current-user",
+      data: imageData
+    }
+
+    const newLayers = [...layers, newLayer]
+    setLayers(newLayers)
+    setActiveLayerId(newLayer.id)
+
+    // Update history
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push([...newLayers])
+    setHistory(newHistory)
+    setHistoryIndex(newHistory.length - 1)
+
+    // Broadcast the new layer if using real-time collaboration
+    updateLayer(activeDocument.id, newLayer)
+  }
+
   return (
     <div 
       className="flex flex-col h-screen bg-zinc-900 text-zinc-100"
@@ -293,6 +351,12 @@ export default function EditorWorkspace() {
           onBrushSizeChange={setBrushSize}
           eraserSize={eraserSize}
           onEraserSizeChange={setEraserSize}
+          fontSize={fontSize}
+          onFontSizeChange={setFontSize}
+          fontFamily={fontFamily}
+          onFontFamilyChange={setFontFamily}
+          textColor={textColor}
+          onTextColorChange={setTextColor}
         />
 
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -308,6 +372,13 @@ export default function EditorWorkspace() {
             brushColor={brushColor}
             brushSize={brushSize}
             eraserSize={eraserSize}
+            fontSize={fontSize}
+            fontFamily={fontFamily}
+            textColor={textColor}
+            activeText={activeText}
+            onTextChange={(text) => setActiveText(activeText ? { ...activeText, content: text } : null)}
+            onTextAdd={handleTextAdd}
+            onImagePaste={handleImagePaste}
           />
         </div>
 

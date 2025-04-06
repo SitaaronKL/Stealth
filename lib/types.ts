@@ -9,6 +9,15 @@ export interface Layer {
   type: "raster" | "vector" | "text"
   owner: string
   data: string | null // Base64 encoded image data
+  textData?: {
+    id: string
+    content: string
+    x: number
+    y: number
+    fontFamily: string
+    fontSize: number
+    color: string
+  }
 }
 
 export type User = {

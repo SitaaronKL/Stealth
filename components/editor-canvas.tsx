@@ -25,6 +25,18 @@ interface EditorCanvasProps {
   brushColor: string
   brushSize: number
   eraserSize: number
+  fontSize: number
+  fontFamily: string
+  textColor: string
+  activeText: {
+    id: string;
+    content: string;
+    x: number;
+    y: number;
+  } | null
+  onTextChange: (text: string) => void
+  onTextAdd: (text: { id: string; content: string; x: number; y: number }) => void
+  onImagePaste: (imageData: string) => void
 }
 
 export default function EditorCanvas({
@@ -39,6 +51,13 @@ export default function EditorCanvas({
   brushColor,
   brushSize,
   eraserSize,
+  fontSize,
+  fontFamily,
+  textColor,
+  activeText,
+  onTextChange,
+  onTextAdd,
+  onImagePaste,
 }: EditorCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -49,6 +68,17 @@ export default function EditorCanvas({
   const [newComment, setNewComment] = useState<{ x: number; y: number; text: string } | null>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [lastPoint, setLastPoint] = useState<{ x: number; y: number } | null>(null)
+  const [textInput, setTextInput] = useState<{
+    x: number;
+    y: number;
+    value: string;
+  } | null>(null)
+  const [editingText, setEditingText] = useState<{
+    id: string;
+    content: string;
+    x: number;
+    y: number;
+  } | null>(null)
 
   // Initialize canvas only once with document dimensions
   useEffect(() => {
@@ -66,38 +96,12 @@ export default function EditorCanvas({
     ctx.lineJoin = 'round'
   }, [document.width, document.height]) // Remove brushColor and brushSize from dependencies
 
-  // Composite all layers
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    // Draw each visible layer
-    layers.forEach(layer => {
-      if (!layer.visible) return
-      if (layer.data) {
-        const img = new Image()
-        img.src = layer.data
-        img.onload = () => {
-          ctx.globalAlpha = layer.opacity / 100
-          ctx.drawImage(img, 0, 0)
-          ctx.globalAlpha = 1
-        }
-      }
-    })
-  }, [layers])
-
   // Handle canvas rendering
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const ctx = canvas.getContext("2d")
+    const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     // Clear canvas
@@ -116,20 +120,29 @@ export default function EditorCanvas({
       }
     }
 
-    // Draw layers
+    // Draw all layers in order
     layers.forEach(layer => {
       if (!layer.visible) return
-      if (layer.data) {
+
+      ctx.globalAlpha = layer.opacity / 100
+
+      if (layer.type === "text" && layer.textData) {
+        console.log("Drawing text:", layer.textData) // Debug log
+        ctx.font = `${layer.textData.fontSize}px ${layer.textData.fontFamily}`
+        ctx.fillStyle = layer.textData.color
+        ctx.textBaseline = 'top' // This helps with text positioning
+        ctx.fillText(layer.textData.content, layer.textData.x, layer.textData.y)
+      } else if (layer.data) {
         const img = new Image()
         img.src = layer.data
         img.onload = () => {
-          ctx.globalAlpha = layer.opacity / 100
           ctx.drawImage(img, 0, 0)
-          ctx.globalAlpha = 1
         }
       }
+
+      ctx.globalAlpha = 1
     })
-  }, [layers])
+  }, [layers, document.width, document.height])
 
   // Handle canvas interactions
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -146,8 +159,26 @@ export default function EditorCanvas({
       setNewComment({ x, y, text: "" })
     } else if (activeTool === "brush" || activeTool === "eraser") {
       startDrawing(e)
+    } else if (activeTool === "text") {
+      // Check if clicking on existing text
+      const textLayer = layers.find(layer => 
+        layer.type === "text" && 
+        layer.textData &&
+        Math.abs(layer.textData.x - x) < 50 && // Adjust hit area as needed
+        Math.abs(layer.textData.y - y) < 50
+      )
+
+      if (textLayer?.textData) {
+        setEditingText(textLayer.textData)
+      } else {
+        setEditingText({
+          id: `text-${Date.now()}`,
+          content: "",
+          x,
+          y
+        })
+      }
     }
-    // Other tool interactions would be handled here
   }
 
   const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -260,6 +291,48 @@ export default function EditorCanvas({
     updateLayerData(activeLayerId, layerData)
   }
 
+  // Add text input handling
+  const handleTextSubmit = () => {
+    if (!editingText) return
+    onTextAdd(editingText)
+    setEditingText(null)
+  }
+
+  // Add function to handle text click for editing
+  const handleTextClick = (text: { id: string; content: string; x: number; y: number }) => {
+    if (activeTool !== "text") return
+    setEditingText(text)
+  }
+
+  // Update clipboard paste handler
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (const item of items) {
+        if (item.type.indexOf('image') === 0) {
+          e.preventDefault()
+          
+          const file = item.getAsFile()
+          if (!file) continue
+
+          const reader = new FileReader()
+          reader.onload = (event) => {
+            const imageData = event.target?.result as string
+            onImagePaste(imageData)
+          }
+
+          reader.readAsDataURL(file)
+        }
+      }
+    }
+
+    // Add paste event listener to window
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [onImagePaste])
+
   return (
     <div className="relative flex-1 overflow-hidden bg-zinc-800" ref={containerRef}>
       {/* Canvas container */}
@@ -352,6 +425,42 @@ export default function EditorCanvas({
                 </Button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Text Input */}
+        {editingText && (
+          <div
+            className="absolute"
+            style={{
+              left: editingText.x + 'px',
+              top: editingText.y + 'px',
+              transform: `scale(${scale})`,
+              transformOrigin: "0 0",
+            }}
+          >
+            <Input
+              type="text"
+              value={editingText.content}
+              placeholder="Type here..."
+              onChange={(e) => setEditingText({ ...editingText, content: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleTextSubmit()
+                }
+                if (e.key === 'Escape') {
+                  setEditingText(null)
+                }
+              }}
+              onBlur={handleTextSubmit}
+              autoFocus
+              className="bg-transparent border-none text-white shadow-none p-0 min-w-[100px]"
+              style={{
+                fontFamily,
+                fontSize: `${fontSize}px`,
+                color: textColor,
+              }}
+            />
           </div>
         )}
       </div>
