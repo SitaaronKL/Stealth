@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import EditorHeader from "@/components/editor-header"
 import EditorCanvas from "@/components/editor-canvas"
@@ -147,6 +147,30 @@ export default function EditorWorkspace() {
     setHistory(newHistory)
     setHistoryIndex(newHistory.length - 1)
   }
+
+  // Add keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Ctrl/Cmd + Z for Undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+      }
+      // Optional: Add Ctrl/Cmd + Shift + Z for Redo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+        e.preventDefault()
+        redo()
+      }
+      // Alternative: Ctrl/Cmd + Y for Redo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault()
+        redo()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [historyIndex]) // Add any dependencies needed for undo/redo functions
 
   return (
     <div className="flex flex-col h-screen bg-zinc-900 text-zinc-100">
